@@ -68,7 +68,7 @@ export function ReceiptModal({ sale, onClose, onNew }: { sale: Sale | null; onCl
   const run = async (kind: "pdf" | "xlsx") => {
     setBusy(kind);
     try {
-      const file = kind === "pdf" ? await invoicePDF(ref.current!.firstElementChild as HTMLElement, sale) : await invoiceExcel(sale, settings);
+      const file = kind === "pdf" ? await invoicePDF(sale, settings) : await invoiceExcel(sale, settings);
       const shared = await shareOrDownload(file, `فاتورة #${sale.no}`);
       if (!shared) toast.success(kind === "pdf" ? "تم تنزيل ملف PDF" : "تم تنزيل ملف Excel");
     } catch {
