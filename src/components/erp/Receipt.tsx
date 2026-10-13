@@ -1,4 +1,6 @@
-import { Copy, MessageCircle, Printer, RotateCcw } from "lucide-react";
+import { Copy, FileSpreadsheet, FileText, Loader2, MessageCircle, Printer, RotateCcw } from "lucide-react";
+import { useRef, useState } from "react";
+import { invoiceExcel, invoicePDF, shareOrDownload } from "@/lib/invoice-export";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Modal } from "./ui";
@@ -59,14 +61,28 @@ export function ReceiptView({ sale }: { sale: Sale }) {
 
 export function ReceiptModal({ sale, onClose, onNew }: { sale: Sale | null; onClose: () => void; onNew?: () => void }) {
   const { settings } = useDB();
+  const ref = useRef<HTMLDivElement>(null);
+  const [busy, setBusy] = useState<"" | "pdf" | "xlsx">("");
   if (!sale) return null;
   const text = receiptText(sale, settings);
+  const run = async (kind: "pdf" | "xlsx") => {
+    setBusy(kind);
+    try {
+      const file = kind === "pdf" ? await invoicePDF(ref.current!.firstElementChild as HTMLElement, sale) : await invoiceExcel(sale, settings);
+      const shared = await shareOrDownload(file, `فاتورة #${sale.no}`);
+      if (!shared) toast.success(kind === "pdf" ? "تم تنزيل ملف PDF" : "تم تنزيل ملف Excel");
+    } catch {
+      toast.error("تعذّر إنشاء الملف، حاول مرة أخرى");
+    } finally { setBusy(""); }
+  };
   return (
     <Modal open={!!sale} onClose={onClose} title={`فاتورة #${num(sale.no)}`} className="sm:max-w-md">
-      <ReceiptView sale={sale} />
+      <div ref={ref}><ReceiptView sale={sale} /></div>
       <div className="grid grid-cols-2 gap-2">
         <Button onClick={() => window.print()}><Printer /> طباعة الفاتورة</Button>
         <Button variant="secondary" onClick={() => window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, "_blank")}><MessageCircle /> مشاركة واتساب</Button>
+        <Button variant="secondary" disabled={!!busy} onClick={() => run("pdf")}>{busy === "pdf" ? <Loader2 className="animate-spin" /> : <FileText />} مشاركة PDF</Button>
+        <Button variant="secondary" disabled={!!busy} onClick={() => run("xlsx")}>{busy === "xlsx" ? <Loader2 className="animate-spin" /> : <FileSpreadsheet />} مشاركة Excel</Button>
         <Button variant="outline" onClick={() => navigator.clipboard.writeText(text).then(() => toast.success("تم نسخ نص الفاتورة"))}><Copy /> نسخ نص الفاتورة</Button>
         <Button variant="outline" onClick={() => { onNew?.(); onClose(); }}><RotateCcw /> {onNew ? "بدء بيع جديد" : "إغلاق"}</Button>
       </div>
