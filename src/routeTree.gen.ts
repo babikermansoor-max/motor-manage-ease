@@ -10,17 +10,26 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as BranchesRouteImport } from './routes/branches'
 import { Route as CustomersRouteImport } from './routes/customers'
 import { Route as InventoryRouteImport } from './routes/inventory'
+import { Route as LoginRouteImport } from './routes/login'
 import { Route as PurchasesRouteImport } from './routes/purchases'
 import { Route as ReportsRouteImport } from './routes/reports'
 import { Route as SalesRouteImport } from './routes/sales'
 import { Route as SettingsRouteImport } from './routes/settings'
+import { Route as StaffRouteImport } from './routes/staff'
+import { Route as TransfersRouteImport } from './routes/transfers'
 import { Route as TreasuryRouteImport } from './routes/treasury'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const BranchesRoute = BranchesRouteImport.update({
+  id: '/branches',
+  path: '/branches',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CustomersRoute = CustomersRouteImport.update({
@@ -31,6 +40,11 @@ const CustomersRoute = CustomersRouteImport.update({
 const InventoryRoute = InventoryRouteImport.update({
   id: '/inventory',
   path: '/inventory',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PurchasesRoute = PurchasesRouteImport.update({
@@ -53,6 +67,16 @@ const SettingsRoute = SettingsRouteImport.update({
   path: '/settings',
   getParentRoute: () => rootRouteImport,
 } as any)
+const StaffRoute = StaffRouteImport.update({
+  id: '/staff',
+  path: '/staff',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TransfersRoute = TransfersRouteImport.update({
+  id: '/transfers',
+  path: '/transfers',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const TreasuryRoute = TreasuryRouteImport.update({
   id: '/treasury',
   path: '/treasury',
@@ -61,76 +85,104 @@ const TreasuryRoute = TreasuryRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/branches': typeof BranchesRoute
   '/customers': typeof CustomersRoute
   '/inventory': typeof InventoryRoute
+  '/login': typeof LoginRoute
   '/purchases': typeof PurchasesRoute
   '/reports': typeof ReportsRoute
   '/sales': typeof SalesRoute
   '/settings': typeof SettingsRoute
+  '/staff': typeof StaffRoute
+  '/transfers': typeof TransfersRoute
   '/treasury': typeof TreasuryRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/branches': typeof BranchesRoute
   '/customers': typeof CustomersRoute
   '/inventory': typeof InventoryRoute
+  '/login': typeof LoginRoute
   '/purchases': typeof PurchasesRoute
   '/reports': typeof ReportsRoute
   '/sales': typeof SalesRoute
   '/settings': typeof SettingsRoute
+  '/staff': typeof StaffRoute
+  '/transfers': typeof TransfersRoute
   '/treasury': typeof TreasuryRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/branches': typeof BranchesRoute
   '/customers': typeof CustomersRoute
   '/inventory': typeof InventoryRoute
+  '/login': typeof LoginRoute
   '/purchases': typeof PurchasesRoute
   '/reports': typeof ReportsRoute
   '/sales': typeof SalesRoute
   '/settings': typeof SettingsRoute
+  '/staff': typeof StaffRoute
+  '/transfers': typeof TransfersRoute
   '/treasury': typeof TreasuryRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/branches'
     | '/customers'
     | '/inventory'
+    | '/login'
     | '/purchases'
     | '/reports'
     | '/sales'
     | '/settings'
+    | '/staff'
+    | '/transfers'
     | '/treasury'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/branches'
     | '/customers'
     | '/inventory'
+    | '/login'
     | '/purchases'
     | '/reports'
     | '/sales'
     | '/settings'
+    | '/staff'
+    | '/transfers'
     | '/treasury'
   id:
     | '__root__'
     | '/'
+    | '/branches'
     | '/customers'
     | '/inventory'
+    | '/login'
     | '/purchases'
     | '/reports'
     | '/sales'
     | '/settings'
+    | '/staff'
+    | '/transfers'
     | '/treasury'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  BranchesRoute: typeof BranchesRoute
   CustomersRoute: typeof CustomersRoute
   InventoryRoute: typeof InventoryRoute
+  LoginRoute: typeof LoginRoute
   PurchasesRoute: typeof PurchasesRoute
   ReportsRoute: typeof ReportsRoute
   SalesRoute: typeof SalesRoute
   SettingsRoute: typeof SettingsRoute
+  StaffRoute: typeof StaffRoute
+  TransfersRoute: typeof TransfersRoute
   TreasuryRoute: typeof TreasuryRoute
 }
 
@@ -141,6 +193,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/branches': {
+      id: '/branches'
+      path: '/branches'
+      fullPath: '/branches'
+      preLoaderRoute: typeof BranchesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/customers': {
@@ -155,6 +214,13 @@ declare module '@tanstack/react-router' {
       path: '/inventory'
       fullPath: '/inventory'
       preLoaderRoute: typeof InventoryRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/purchases': {
@@ -185,6 +251,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/staff': {
+      id: '/staff'
+      path: '/staff'
+      fullPath: '/staff'
+      preLoaderRoute: typeof StaffRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/transfers': {
+      id: '/transfers'
+      path: '/transfers'
+      fullPath: '/transfers'
+      preLoaderRoute: typeof TransfersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/treasury': {
       id: '/treasury'
       path: '/treasury'
@@ -197,12 +277,16 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  BranchesRoute: BranchesRoute,
   CustomersRoute: CustomersRoute,
   InventoryRoute: InventoryRoute,
+  LoginRoute: LoginRoute,
   PurchasesRoute: PurchasesRoute,
   ReportsRoute: ReportsRoute,
   SalesRoute: SalesRoute,
   SettingsRoute: SettingsRoute,
+  StaffRoute: StaffRoute,
+  TransfersRoute: TransfersRoute,
   TreasuryRoute: TreasuryRoute,
 }
 export const routeTree = rootRouteImport
