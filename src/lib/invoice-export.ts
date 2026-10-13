@@ -37,7 +37,7 @@ export async function invoiceExcel(s: Sale, st: StoreInfo): Promise<File> {
   ];
   let r = 7;
   for (const [a, b, c, d] of info) {
-    ws.mergeCells(r, 2, r, 2); ws.mergeCells(r, 5, r, 6);
+    ws.mergeCells(r, 5, r, 6);
     const cells: [number, string, boolean][] = [[1, a, true], [3, b, false], [4, c, true], [5, d, false]];
     ws.mergeCells(r, 1, r, 2);
     for (const [col, v, label] of cells) {
