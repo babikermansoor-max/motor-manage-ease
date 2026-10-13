@@ -20,7 +20,21 @@ export interface Purchase { id: string; no: number; date: string; supplierId: st
 export type TxType = "مبيعات" | "مشتريات" | "مصروفات" | "سداد ديون" | "تحصيل ديون" | "مرتجعات";
 export interface Tx { id: string; date: string; type: TxType; dir: "in" | "out"; amount: number; method: "cash" | "bankak"; note: string }
 export interface Settings { storeName: string; subtitle: string; phone: string; address: string; currency: string; footer: string; cashier: string; shiftStart: string }
-export interface DB { products: Product[]; customers: Customer[]; suppliers: Supplier[]; sales: Sale[]; purchases: Purchase[]; txs: Tx[]; settings: Settings; openingBalance: number }
+export const PERMS = [
+  { key: "pos", label: "نقطة البيع", to: "/" }, { key: "inventory", label: "المخزون", to: "/inventory" },
+  { key: "sales", label: "المبيعات والمرتجعات", to: "/sales" }, { key: "purchases", label: "المشتريات", to: "/purchases" },
+  { key: "customers", label: "العملاء والموردين", to: "/customers" }, { key: "treasury", label: "الخزينة", to: "/treasury" },
+  { key: "reports", label: "التقارير", to: "/reports" }, { key: "branches", label: "الفروع والمخازن", to: "/branches" },
+  { key: "transfers", label: "التحويل بين المخازن", to: "/transfers" }, { key: "staff", label: "الموظفين والصلاحيات", to: "/staff" },
+  { key: "settings", label: "الإعدادات", to: "/settings" },
+] as const;
+export type Perm = (typeof PERMS)[number]["key"];
+export const ALL_PERMS = PERMS.map((p) => p.key) as Perm[];
+export interface Employee { id: string; name: string; username: string; pin: string; role: string; branchId: string; perms: Perm[]; active: boolean }
+export interface Warehouse { id: string; name: string; type: "فرع" | "مخزن"; location: string; manager: string }
+export interface Transfer { id: string; no: number; date: string; from: string; to: string; fromName: string; toName: string; items: { productId: string; name: string; qty: number }[]; by: string; note: string }
+export const MAIN_WH = "main";
+export interface DB { employees: Employee[]; warehouses: Warehouse[]; transfers: Transfer[]; whStock: Record<string, Record<string, number>>; products: Product[]; customers: Customer[]; suppliers: Supplier[]; sales: Sale[]; purchases: Purchase[]; txs: Tx[]; settings: Settings; openingBalance: number }
 
 export const GENERAL_CUSTOMER = "general";
 const KEY = "omar-parts-erp-v1";
@@ -88,7 +102,22 @@ function seed(): DB {
   const purchases: Purchase[] = [{ id: uid(), no: 501, date: new Date(now - 10 * 864e5).toISOString(), supplierId: "s1", supplierName: "حسن كوريا للاسبيرات", items: [{ productId: products[0].id, name: products[0].name, qty: 50, cost: 4500 }], total: 225000 }];
   txs.push({ id: uid(), date: purchases[0].date, type: "مشتريات", dir: "out", amount: 225000, method: "cash", note: "فاتورة مشتريات #501 - حسن كوريا للاسبيرات" });
   txs.sort((a, b) => b.date.localeCompare(a.date)); sales.reverse();
+  const employees: Employee[] = [
+    { id: "e1", name: "عمر عبدالله", username: "admin", pin: "1234", role: "مدير عام", branchId: MAIN_WH, perms: [...ALL_PERMS], active: true },
+    { id: "e2", name: "خالد الصادق", username: "cashier", pin: "1111", role: "كاشير", branchId: MAIN_WH, perms: ["pos", "sales", "customers"], active: true },
+    { id: "e3", name: "يوسف حامد", username: "store", pin: "2222", role: "أمين مخزن", branchId: "w2", perms: ["inventory", "purchases", "branches", "transfers"], active: true },
+  ];
+  const warehouses: Warehouse[] = [
+    { id: MAIN_WH, name: "الفرع الرئيسي - السوق العربي", type: "فرع", location: "الخرطوم - السوق العربي", manager: "عمر عبدالله" },
+    { id: "w2", name: "مستودع بحري", type: "مخزن", location: "الخرطوم بحري - المنطقة الصناعية", manager: "يوسف حامد" },
+    { id: "w3", name: "فرع أم درمان", type: "فرع", location: "أم درمان - سوق ليبيا", manager: "خالد الصادق" },
+  ];
+  const whStock: DB["whStock"] = {
+    w2: Object.fromEntries(products.map((p, i) => [p.id, 10 + ((i * 7) % 25)])),
+    w3: Object.fromEntries(products.slice(0, 8).map((p, i) => [p.id, 3 + i])),
+  };
   return {
+    employees, warehouses, transfers: [], whStock,
     products, customers, suppliers, sales, purchases, txs, openingBalance: 2500000,
     settings: { storeName: "مجموعة عمر عبد الله عبدالرحمن", subtitle: "لقطع غيار السيارات الكورية", phone: "0912000111", address: "الخرطوم - السوق العربي - شارع الحرية", currency: "ج.س", footer: "البضاعة المباعة ترد أو تستبدل خلال 3 أيام بالفاتورة وبحالتها الأصلية. الكهرباء لا ترد.", cashier: "عمر عبدالله", shiftStart: "08:00" },
   };
@@ -134,7 +163,7 @@ export function checkout(cart: { productId: string; qty: number }[], customerId:
   const t = computeTotals(items, discountValue, discountType);
   const cust = d.customers.find((c) => c.id === customerId)!;
   const no = Math.max(1000, ...d.sales.map((s) => s.no)) + 1;
-  const sale: Sale = { id: uid(), no, date: new Date().toISOString(), customerId, customerName: cust.name, items, ...t, method, cashier: d.settings.cashier };
+  const sale: Sale = { id: uid(), no, date: new Date().toISOString(), customerId, customerName: cust.name, items, ...t, method, cashier: currentUser()?.name ?? d.settings.cashier };
   setDB((db) => ({
     ...db,
     products: db.products.map((p) => { const it = items.find((i) => i.productId === p.id); return it ? { ...p, stock: p.stock - it.qty } : p; }),
@@ -200,4 +229,67 @@ export function treasury(db: DB) {
     expenses: sum((t) => t.type === "مصروفات"),
     cashInHand: db.openingBalance + cashIn - cashOut,
   };
+}
+
+// ---------- Warehouses & transfers ----------
+export function whQty(db: DB, productId: string, wh: string) {
+  if (wh === MAIN_WH) return db.products.find((p) => p.id === productId)?.stock ?? 0;
+  return db.whStock[wh]?.[productId] ?? 0;
+}
+export function transferStock(from: string, to: string, items: { productId: string; qty: number }[], note = ""): Transfer {
+  const d = getDB();
+  if (!from || !to || from === to) throw new Error("اختر مخزنين مختلفين");
+  const valid = items.filter((i) => i.qty > 0);
+  if (!valid.length) throw new Error("أضف أصنافاً للتحويل");
+  for (const i of valid) if (i.qty > whQty(d, i.productId, from)) throw new Error(`الكمية غير متوفرة بالمخزن المصدر: ${d.products.find((p) => p.id === i.productId)?.name}`);
+  const name = (id: string) => d.warehouses.find((w) => w.id === id)?.name ?? id;
+  const no = Math.max(100, ...d.transfers.map((t) => t.no)) + 1;
+  const tr: Transfer = { id: uid(), no, date: new Date().toISOString(), from, to, fromName: name(from), toName: name(to), items: valid.map((i) => ({ ...i, name: d.products.find((p) => p.id === i.productId)?.name ?? "" })), by: currentUser()?.name ?? "-", note };
+  setDB((db) => {
+    const ws = { ...db.whStock };
+    let products = db.products;
+    const apply = (wh: string, pid: string, delta: number) => {
+      if (wh === MAIN_WH) products = products.map((p) => (p.id === pid ? { ...p, stock: p.stock + delta } : p));
+      else ws[wh] = { ...(ws[wh] ?? {}), [pid]: (ws[wh]?.[pid] ?? 0) + delta };
+    };
+    for (const i of valid) { apply(from, i.productId, -i.qty); apply(to, i.productId, i.qty); }
+    return { ...db, products, whStock: ws, transfers: [tr, ...db.transfers] };
+  });
+  return tr;
+}
+
+// ---------- Session (login) ----------
+const SKEY = "omar-parts-session";
+let sessionId: string | null | undefined;
+const sListeners = new Set<() => void>();
+function getSessionId() {
+  if (sessionId === undefined) sessionId = typeof window === "undefined" ? null : localStorage.getItem(SKEY);
+  return sessionId;
+}
+function setSession(id: string | null) {
+  sessionId = id;
+  try { if (id) localStorage.setItem(SKEY, id); else localStorage.removeItem(SKEY); } catch { /* ignore */ }
+  sListeners.forEach((l) => l());
+}
+export function currentUser(): Employee | null {
+  const id = getSessionId();
+  const e = id ? getDB().employees.find((x) => x.id === id) : undefined;
+  return e && e.active ? e : null;
+}
+export function useCurrentUser() {
+  useDB();
+  useSyncExternalStore((l) => { sListeners.add(l); return () => sListeners.delete(l); }, getSessionId, () => null);
+  return currentUser();
+}
+export function login(username: string, pin: string): Employee {
+  const e = getDB().employees.find((x) => x.username.trim().toLowerCase() === username.trim().toLowerCase());
+  if (!e || e.pin !== pin) throw new Error("اسم المستخدم أو الرمز غير صحيح");
+  if (!e.active) throw new Error("هذا الحساب موقوف");
+  setSession(e.id);
+  return e;
+}
+export function logout() { setSession(null); }
+export const can = (e: Employee | null, p: Perm) => !!e?.perms.includes(p);
+export function permForPath(path: string): Perm | undefined {
+  return PERMS.find((p) => p.to === path)?.key;
 }
