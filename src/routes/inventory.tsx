@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
-import { AlertTriangle, Boxes, Download, PackageX, Pencil, Plus, Search, SlidersHorizontal, Trash2, Upload, Wallet, Coins } from "lucide-react";
+import { AlertTriangle, Boxes, Download, PackageX, Pencil, Plus, Search, SlidersHorizontal, Trash2, Upload, Wallet, Coins, FileSpreadsheet, FileText, Loader2 } from "lucide-react";
+import { excelReport, pdfReport, shareFile, type DocMeta, type Section } from "@/lib/doc-export";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
 import { Button } from "@/components/ui/button";
@@ -42,15 +43,33 @@ function Inventory() {
       (!s || [p.name, p.partNo, p.oem, p.barcode, p.models, p.shelf].some((f) => f.toLowerCase().includes(s))));
   }, [products, q, lowOnly, cat]);
 
-  const exportCSV = () => downloadCSV(`inventory-${new Date().toISOString().slice(0, 10)}.csv`, HEADERS,
-    products.map((p) => [p.partNo, p.oem, p.barcode, p.name, p.brand, p.models, p.category, p.shelf, p.cost, p.price, p.stock, p.min]));
+  const [busy, setBusy] = useState<"" | "x" | "p">("");
+  const exportFile = async (kind: "x" | "p") => {
+    setBusy(kind);
+    try {
+      const src = list;
+      const date = new Date().toISOString().slice(0, 10);
+      const meta: DocMeta = {
+        title: lowOnly ? "قائمة الأصناف الناقصة" : "تقرير جرد المخزون", storeName: settings.storeName, subtitle: settings.subtitle, phone: settings.phone, address: settings.address, footer: settings.footer,
+        info: [["تاريخ الجرد", new Date().toLocaleString("ar-EG")], ["التصنيف", cat], ["عدد الأصناف", num(src.length)]],
+        kpis: [["قيمة المخزون (تكلفة)", money(src.reduce((s, p) => s + p.cost * p.stock, 0), cur)], ["قيمة المخزون (بيع)", money(src.reduce((s, p) => s + p.price * p.stock, 0), cur)], ["أصناف نفدت", num(src.filter((p) => p.stock === 0).length)], ["أصناف منخفضة", num(src.filter((p) => p.stock > 0 && p.stock <= p.min).length)]],
+      };
+      const pdf = kind === "p";
+      const sec: Section = pdf
+        ? { title: "تفاصيل الأصناف", head: ["رقم القطعة", "الاسم", "الموديل", "الرف", "التكلفة", "البيع", "الكمية", "الحد الأدنى", "القيمة"], rows: src.map((p) => [p.partNo, p.name, p.models, p.shelf, p.cost, p.price, p.stock, p.min, p.cost * p.stock]), numCols: [4, 5, 6, 7, 8], sumCols: [6, 8], tone: (i) => (src[i].stock === 0 ? "danger" : src[i].stock <= src[i].min ? "warn" : undefined) }
+        : { title: "تفاصيل الأصناف", head: [...HEADERS, "قيمة المخزون (تكلفة)", "الحالة"], rows: src.map((p) => [p.partNo, p.oem, p.barcode, p.name, p.brand, p.models, p.category, p.shelf, p.cost, p.price, p.stock, p.min, p.cost * p.stock, p.stock === 0 ? "نفد" : p.stock <= p.min ? "منخفض" : "متوفر"]), numCols: [8, 9, 10, 11, 12], sumCols: [10, 12], formulas: { 12: (r) => `I${r}*K${r}` }, widths: [16, 16, 16, 30, 10, 18, 16, 8, 12, 12, 9, 10, 18, 10], tone: (i) => (src[i].stock === 0 ? "danger" : src[i].stock <= src[i].min ? "warn" : undefined) };
+      const name = `${lowOnly ? "نواقص" : "جرد-المخزون"}-${date}.${pdf ? "pdf" : "xlsx"}`;
+      await shareFile(pdf ? await pdfReport(name, meta, [sec]) : await excelReport(name, meta, [sec]), meta.title);
+    } catch { toast.error("تعذر إنشاء الملف"); } finally { setBusy(""); }
+  };
 
   return (
     <div>
       <PageHeader title="المخزون وقطع الغيار" subtitle="جميع الأصناف وأرصدتها ومواقعها" icon={Boxes} actions={<>
         <Button onClick={() => setEdit(empty())}><Plus /> إضافة قطعة غيار جديدة</Button>
         <Button variant="secondary" onClick={() => setImportOpen(true)}><Upload /> استيراد من Excel</Button>
-        <Button variant="outline" onClick={exportCSV}><Download /> تصدير إلى Excel (.csv)</Button>
+        <Button variant="outline" disabled={!!busy} onClick={() => exportFile("x")}>{busy === "x" ? <Loader2 className="animate-spin" /> : <FileSpreadsheet />} تصدير Excel</Button>
+        <Button variant="outline" disabled={!!busy} onClick={() => exportFile("p")}>{busy === "p" ? <Loader2 className="animate-spin" /> : <FileText />} تصدير PDF</Button>
       </>} />
       <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Stat label="إجمالي الأصناف" value={num(products.length)} icon={Boxes} />
