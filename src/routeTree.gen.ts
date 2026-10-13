@@ -10,33 +10,128 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as CustomersRouteImport } from './routes/customers'
+import { Route as InventoryRouteImport } from './routes/inventory'
+import { Route as PurchasesRouteImport } from './routes/purchases'
+import { Route as ReportsRouteImport } from './routes/reports'
+import { Route as SalesRouteImport } from './routes/sales'
+import { Route as SettingsRouteImport } from './routes/settings'
+import { Route as TreasuryRouteImport } from './routes/treasury'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const CustomersRoute = CustomersRouteImport.update({
+  id: '/customers',
+  path: '/customers',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const InventoryRoute = InventoryRouteImport.update({
+  id: '/inventory',
+  path: '/inventory',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PurchasesRoute = PurchasesRouteImport.update({
+  id: '/purchases',
+  path: '/purchases',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ReportsRoute = ReportsRouteImport.update({
+  id: '/reports',
+  path: '/reports',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SalesRoute = SalesRouteImport.update({
+  id: '/sales',
+  path: '/sales',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SettingsRoute = SettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TreasuryRoute = TreasuryRouteImport.update({
+  id: '/treasury',
+  path: '/treasury',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/customers': typeof CustomersRoute
+  '/inventory': typeof InventoryRoute
+  '/purchases': typeof PurchasesRoute
+  '/reports': typeof ReportsRoute
+  '/sales': typeof SalesRoute
+  '/settings': typeof SettingsRoute
+  '/treasury': typeof TreasuryRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/customers': typeof CustomersRoute
+  '/inventory': typeof InventoryRoute
+  '/purchases': typeof PurchasesRoute
+  '/reports': typeof ReportsRoute
+  '/sales': typeof SalesRoute
+  '/settings': typeof SettingsRoute
+  '/treasury': typeof TreasuryRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/customers': typeof CustomersRoute
+  '/inventory': typeof InventoryRoute
+  '/purchases': typeof PurchasesRoute
+  '/reports': typeof ReportsRoute
+  '/sales': typeof SalesRoute
+  '/settings': typeof SettingsRoute
+  '/treasury': typeof TreasuryRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths:
+    | '/'
+    | '/customers'
+    | '/inventory'
+    | '/purchases'
+    | '/reports'
+    | '/sales'
+    | '/settings'
+    | '/treasury'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to:
+    | '/'
+    | '/customers'
+    | '/inventory'
+    | '/purchases'
+    | '/reports'
+    | '/sales'
+    | '/settings'
+    | '/treasury'
+  id:
+    | '__root__'
+    | '/'
+    | '/customers'
+    | '/inventory'
+    | '/purchases'
+    | '/reports'
+    | '/sales'
+    | '/settings'
+    | '/treasury'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  CustomersRoute: typeof CustomersRoute
+  InventoryRoute: typeof InventoryRoute
+  PurchasesRoute: typeof PurchasesRoute
+  ReportsRoute: typeof ReportsRoute
+  SalesRoute: typeof SalesRoute
+  SettingsRoute: typeof SettingsRoute
+  TreasuryRoute: typeof TreasuryRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -48,11 +143,67 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/customers': {
+      id: '/customers'
+      path: '/customers'
+      fullPath: '/customers'
+      preLoaderRoute: typeof CustomersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/inventory': {
+      id: '/inventory'
+      path: '/inventory'
+      fullPath: '/inventory'
+      preLoaderRoute: typeof InventoryRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/purchases': {
+      id: '/purchases'
+      path: '/purchases'
+      fullPath: '/purchases'
+      preLoaderRoute: typeof PurchasesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/reports': {
+      id: '/reports'
+      path: '/reports'
+      fullPath: '/reports'
+      preLoaderRoute: typeof ReportsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/sales': {
+      id: '/sales'
+      path: '/sales'
+      fullPath: '/sales'
+      preLoaderRoute: typeof SalesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/settings': {
+      id: '/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof SettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/treasury': {
+      id: '/treasury'
+      path: '/treasury'
+      fullPath: '/treasury'
+      preLoaderRoute: typeof TreasuryRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  CustomersRoute: CustomersRoute,
+  InventoryRoute: InventoryRoute,
+  PurchasesRoute: PurchasesRoute,
+  ReportsRoute: ReportsRoute,
+  SalesRoute: SalesRoute,
+  SettingsRoute: SettingsRoute,
+  TreasuryRoute: TreasuryRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
