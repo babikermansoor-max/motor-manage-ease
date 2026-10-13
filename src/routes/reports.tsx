@@ -1,11 +1,13 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis, Legend } from "recharts";
-import { BarChart3, Download, Printer } from "lucide-react";
+import { BarChart3, FileSpreadsheet, FileText, Loader2, Printer } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { PAY_LABEL, useDB, type PayMethod } from "@/lib/store";
-import { dateOnly, downloadCSV, money, num } from "@/lib/format";
+import { dateOnly, money, num } from "@/lib/format";
+import { excelReport, pdfReport, shareFile, type DocMeta, type Section } from "@/lib/doc-export";
 import { Modal, PageHeader, tableWrap, td, th } from "@/components/erp/ui";
 
 export const Route = createFileRoute("/reports")({
@@ -56,10 +58,30 @@ function Reports() {
   }, [db, from, to]);
 
   const summary: [string, number][] = [["إجمالي المبيعات", r.gross], ["تكلفة البضاعة المباعة", r.cost], ["صافي الربح (المبيعات - التكلفة)", r.profit], ["المصروفات التشغيلية", r.expenses], ["صافي الربح النقدي", r.net]];
-  const exportCSV = () => downloadCSV(`report-${from}_${to}.csv`, ["البند", "القيمة"], [
-    ["الفترة", `${from} إلى ${to}`], ["عدد الفواتير", r.count], ...summary, [], ["المبيعات حسب طريقة الدفع", ""], ...r.byMethod.map((m) => [m.name, m.value] as [string, number]),
-    [], ["الأصناف الأكثر مبيعاً", "الكمية"], ...r.top.map((t) => [t.name, t.qty] as [string, number]), [], ["المبيعات اليومية", ""], ...r.daily.map((d) => [d.day, d.total] as [string, number]),
-  ]);
+  const [busy, setBusy] = useState<"" | "x" | "p">("");
+  const build = () => {
+    const meta: DocMeta = {
+      title: "التقرير المالي والمبيعات", storeName: db.settings.storeName, subtitle: db.settings.subtitle, phone: db.settings.phone, address: db.settings.address, footer: db.settings.footer,
+      info: [["الفترة", `من ${from} إلى ${to}`], ["عدد الفواتير", num(r.count)], ["العملة", cur]],
+      kpis: [["إجمالي المبيعات", money(r.gross, cur)], ["إجمالي الربح", money(r.profit, cur)], ["المصروفات", money(r.expenses, cur)], ["صافي الربح", money(r.net, cur)]],
+    };
+    const totalM = r.byMethod.reduce((a, m) => a + m.value, 0) || 1;
+    const sections: Section[] = [
+      { title: "الملخص المالي", head: ["البند", `القيمة (${cur})`], rows: summary.map(([k, v]) => [k, v]), numCols: [1], widths: [34, 20] },
+      { title: "المبيعات حسب طريقة الدفع", head: ["طريقة الدفع", `المبلغ (${cur})`, "النسبة %"], rows: r.byMethod.map((m) => [m.name, m.value, Math.round((m.value / totalM) * 100)]), numCols: [1, 2], sumCols: [1] },
+      { title: "أفضل 5 أصناف مبيعاً", head: ["الصنف", "الكمية", `الإيراد (${cur})`], rows: r.top.map((t) => [t.name, t.qty, t.total]), numCols: [1, 2], sumCols: [1, 2] },
+      { title: "المبيعات اليومية", head: ["اليوم", `المبيعات (${cur})`], rows: r.daily.map((d) => [d.day, d.total]), numCols: [1], sumCols: [1] },
+    ];
+    return { meta, sections };
+  };
+  const exportFile = async (kind: "x" | "p") => {
+    setBusy(kind);
+    try {
+      const { meta, sections } = build();
+      const name = `تقرير-${from}_${to}.${kind === "x" ? "xlsx" : "pdf"}`;
+      await shareFile(kind === "x" ? await excelReport(name, meta, sections) : await pdfReport(name, meta, sections), meta.title);
+    } catch { toast.error("تعذر إنشاء الملف"); } finally { setBusy(""); }
+  };
 
   const SummaryTable = () => (
     <table className="w-full">
@@ -73,7 +95,8 @@ function Reports() {
     <div>
       <PageHeader title="التقارير والتحليلات" icon={BarChart3} actions={<>
         <Button onClick={() => setPreview(true)}><Printer /> معاينة وطباعة التقرير</Button>
-        <Button variant="outline" onClick={exportCSV}><Download /> تصدير Excel (.csv)</Button>
+        <Button variant="secondary" disabled={!!busy} onClick={() => exportFile("p")}>{busy === "p" ? <Loader2 className="animate-spin" /> : <FileText />} تصدير PDF</Button>
+        <Button variant="outline" disabled={!!busy} onClick={() => exportFile("x")}>{busy === "x" ? <Loader2 className="animate-spin" /> : <FileSpreadsheet />} تصدير Excel</Button>
       </>} />
       <div className="glass mb-4 flex flex-wrap items-end gap-3 rounded-2xl p-3">
         <label className="text-sm">من تاريخ<Input type="date" value={from} max={to} onChange={(e) => setFrom(e.target.value)} /></label>
