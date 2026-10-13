@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge, Field, Modal, PageHeader, selectCls, tableWrap, td, th } from "@/components/erp/ui";
 import { MAIN_WH, setDB, uid, useDB, whQty, type Warehouse } from "@/lib/store";
-import { fmtNum } from "@/lib/format";
+import { num } from "@/lib/format";
 
 export const Route = createFileRoute("/branches")({
   head: () => ({
@@ -55,7 +55,7 @@ function BranchesPage() {
                 <Badge tone={w.type === "فرع" ? "primary" : "accent"}>{w.type}</Badge>
               </div>
               <div className="mt-3 text-sm text-muted-foreground">المسؤول: <b className="text-foreground">{w.manager || "-"}</b></div>
-              <div className="mt-1 text-sm">{fmtNum(units)} قطعة · قيمة {fmtNum(value)}</div>
+              <div className="mt-1 text-sm">{num(units)} قطعة · قيمة {num(value)}</div>
               <div className="mt-3 flex gap-1" onClick={(e) => e.stopPropagation()}>
                 <Button size="sm" variant="ghost" onClick={() => setEdit(w)}><Pencil /> تعديل</Button>
                 {w.id !== MAIN_WH && <Button size="sm" variant="ghost" onClick={() => del(w)}><Trash2 className="text-destructive" /></Button>}
@@ -73,8 +73,8 @@ function BranchesPage() {
               <tr key={p.id} className="border-b border-border/50">
                 <td className={td + " font-semibold"}>{p.name}</td>
                 <td className={td} dir="ltr">{p.partNo}</td>
-                {warehouses.map((w) => <td key={w.id} className={`${td} ${w.id === view ? "font-bold text-primary" : ""}`}>{fmtNum(whQty(db, p.id, w.id))}</td>)}
-                <td className={td + " font-bold"}>{fmtNum(warehouses.reduce((s, w) => s + whQty(db, p.id, w.id), 0))}</td>
+                {warehouses.map((w) => <td key={w.id} className={`${td} ${w.id === view ? "font-bold text-primary" : ""}`}>{num(whQty(db, p.id, w.id))}</td>)}
+                <td className={td + " font-bold"}>{num(warehouses.reduce((s, w) => s + whQty(db, p.id, w.id), 0))}</td>
               </tr>
             ))}
           </tbody>

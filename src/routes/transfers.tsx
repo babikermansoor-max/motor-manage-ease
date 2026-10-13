@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Empty, Field, Modal, PageHeader, selectCls, tableWrap, td, th } from "@/components/erp/ui";
 import { MAIN_WH, transferStock, useDB, whQty } from "@/lib/store";
-import { fmtNum } from "@/lib/format";
+import { num } from "@/lib/format";
 
 export const Route = createFileRoute("/transfers")({
   head: () => ({
@@ -58,7 +58,7 @@ function TransfersPage() {
                   <td className={td}>{new Date(t.date).toLocaleString("ar-EG")}</td>
                   <td className={td}>{t.fromName}</td>
                   <td className={td}>{t.toName}</td>
-                  <td className={td}>{t.items.map((i) => <div key={i.productId}>{i.name} × {fmtNum(i.qty)}</div>)}</td>
+                  <td className={td}>{t.items.map((i) => <div key={i.productId}>{i.name} × {num(i.qty)}</div>)}</td>
                   <td className={td}>{t.by}</td>
                   <td className={td}>{t.note || "-"}</td>
                 </tr>
@@ -86,7 +86,7 @@ function TransfersPage() {
             const max = whQty(db, i.productId, from);
             return (
               <div key={i.productId} className="flex items-center gap-2 rounded-xl bg-muted/40 p-2 text-sm">
-                <div className="min-w-0 flex-1"><div className="truncate font-semibold">{p.name}</div><div className="text-xs text-muted-foreground">متوفر: {fmtNum(max)}</div></div>
+                <div className="min-w-0 flex-1"><div className="truncate font-semibold">{p.name}</div><div className="text-xs text-muted-foreground">متوفر: {num(max)}</div></div>
                 <Input type="number" min={1} max={max} className="w-24" value={i.qty} onChange={(e) => setItems(items.map((x) => (x.productId === i.productId ? { ...x, qty: Number(e.target.value) } : x)))} />
                 <Button size="icon" variant="ghost" onClick={() => setItems(items.filter((x) => x.productId !== i.productId))}><Trash2 className="text-destructive" /></Button>
               </div>
