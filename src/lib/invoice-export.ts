@@ -174,7 +174,7 @@ export async function invoicePDF(s: Sale, st: StoreInfo): Promise<File> {
     const pw = 210, ph = 297;
     const h = (canvas.height * pw) / canvas.width;
     const img = canvas.toDataURL("image/jpeg", 0.95);
-    for (let y = 0; y < h; y += ph) { if (y) pdf.addPage(); pdf.addImage(img, "JPEG", 0, -y, pw, h); }
+    for (let y = 0; y < h - 2; y += ph) { if (y) pdf.addPage(); pdf.addImage(img, "JPEG", 0, -y, pw, h); }
     return new File([pdf.output("blob")], `فاتورة-${s.no}.pdf`, { type: "application/pdf" });
   } finally { host.remove(); }
 }
