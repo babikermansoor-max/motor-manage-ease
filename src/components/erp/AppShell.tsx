@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { Link } from "@tanstack/react-router";
-import { BarChart3, Boxes, ReceiptText, Settings, ShoppingCart, Truck, Users, Wallet, Wrench } from "lucide-react";
-import { useDB } from "@/lib/store";
+import { Link, useLocation, useNavigate } from "@tanstack/react-router";
+import { ArrowLeftRight, BarChart3, Boxes, LogOut, ReceiptText, Settings, ShieldCheck, ShoppingCart, Truck, Users, UserCog, Wallet, Warehouse, Wrench } from "lucide-react";
+import { can, logout, permForPath, useCurrentUser, useDB } from "@/lib/store";
 
 export const NAV = [
   { to: "/", label: "نقطة البيع", icon: ShoppingCart },
@@ -11,6 +11,9 @@ export const NAV = [
   { to: "/customers", label: "العملاء", icon: Users },
   { to: "/treasury", label: "الخزينة", icon: Wallet },
   { to: "/reports", label: "التقارير", icon: BarChart3 },
+  { to: "/branches", label: "الفروع والمخازن", icon: Warehouse },
+  { to: "/transfers", label: "تحويل مخزني", icon: ArrowLeftRight },
+  { to: "/staff", label: "الموظفين", icon: UserCog },
   { to: "/settings", label: "الإعدادات", icon: Settings },
 ] as const;
 
@@ -18,12 +21,32 @@ export function AppShell({ children }: { children: ReactNode }) {
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
   if (!mounted) return <div className="grid min-h-screen place-items-center text-muted-foreground">جارِ التحميل…</div>;
+  return <Gate>{children}</Gate>;
+}
+
+function Gate({ children }: { children: ReactNode }) {
+  const user = useCurrentUser();
+  const { pathname } = useLocation();
+  const navigate = useNavigate();
+  const isLogin = pathname === "/login";
+  useEffect(() => { if (!user && !isLogin) navigate({ to: "/login", replace: true }); }, [user, isLogin, navigate]);
+  if (isLogin) return <>{children}</>;
+  if (!user) return null;
+  const perm = permForPath(pathname);
+  if (perm && !can(user, perm)) {
+    const first = NAV.find((n) => can(user, permForPath(n.to)!));
+    return <Shell><div className="glass mx-auto mt-16 max-w-md rounded-2xl p-8 text-center"><ShieldCheck className="mx-auto mb-3 h-10 w-10 text-accent" /><h1 className="text-lg font-bold">ليس لديك صلاحية لهذه الصفحة</h1><p className="mt-1 text-sm text-muted-foreground">تواصل مع المدير لمنحك الصلاحية.</p>{first && <Link to={first.to} className="mt-4 inline-block text-primary underline">الذهاب إلى {first.label}</Link>}</div></Shell>;
+  }
   return <Shell>{children}</Shell>;
 }
 
 function Shell({ children }: { children: ReactNode }) {
   const { settings, products } = useDB();
   const low = products.filter((p) => p.stock <= p.min).length;
+  const user = useCurrentUser();
+  const navigate = useNavigate();
+  const nav = NAV.filter((n) => can(user, permForPath(n.to)!));
+  const out = () => { logout(); navigate({ to: "/login", replace: true }); };
   return (
     <div dir="rtl" className="flex min-h-screen">
       <aside className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col border-l border-sidebar-border bg-sidebar/80 p-4 backdrop-blur lg:flex">
@@ -35,7 +58,7 @@ function Shell({ children }: { children: ReactNode }) {
           </div>
         </div>
         <nav className="flex flex-1 flex-col gap-1">
-          {NAV.map((n) => (
+          {nav.map((n) => (
             <Link key={n.to} to={n.to} activeOptions={{ exact: true }}
               className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-muted-foreground transition hover:bg-sidebar-accent hover:text-foreground"
               activeProps={{ className: "!bg-primary/15 !text-primary" }}>
@@ -44,11 +67,12 @@ function Shell({ children }: { children: ReactNode }) {
             </Link>
           ))}
         </nav>
-        <div className="rounded-xl bg-muted/50 p-3 text-xs text-muted-foreground">الكاشير: <b className="text-foreground">{settings.cashier}</b></div>
+        <div className="flex items-center gap-2 rounded-xl bg-muted/50 p-3 text-xs text-muted-foreground"><div className="min-w-0 flex-1"><b className="block truncate text-foreground">{user?.name}</b>{user?.role}</div><button onClick={out} title="تسجيل الخروج" className="rounded-lg p-2 hover:bg-destructive/15 hover:text-destructive"><LogOut className="h-4 w-4" /></button></div>
       </aside>
-      <main className="min-w-0 flex-1 px-3 pb-24 pt-4 sm:px-6 lg:pb-8">{children}</main>
+      <main className="min-w-0 flex-1 px-3 pb-24 pt-4 sm:px-6 lg:pb-8">
+        <div className="mb-3 flex items-center justify-between rounded-xl bg-muted/40 px-3 py-2 text-xs lg:hidden"><span><b>{user?.name}</b> · {user?.role}</span><button onClick={out} className="flex items-center gap-1 text-destructive"><LogOut className="h-3.5 w-3.5" /> خروج</button></div>{children}</main>
       <nav className="fixed inset-x-0 bottom-0 z-40 flex overflow-x-auto border-t border-border bg-sidebar/95 backdrop-blur lg:hidden">
-        {NAV.map((n) => (
+        {nav.map((n) => (
           <Link key={n.to} to={n.to} activeOptions={{ exact: true }}
             className="flex min-w-[4.5rem] flex-1 flex-col items-center gap-0.5 py-2 text-[11px] text-muted-foreground"
             activeProps={{ className: "!text-primary" }}>
