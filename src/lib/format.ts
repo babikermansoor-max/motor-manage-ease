@@ -11,8 +11,13 @@ export function downloadCSV(filename: string, headers: string[], rows: (string |
 }
 export function downloadBlob(filename: string, blob: Blob) {
   const a = document.createElement("a");
-  a.href = URL.createObjectURL(blob);
+  const url = URL.createObjectURL(blob);
+  a.href = url;
   a.download = filename;
+  a.rel = "noopener";
+  a.style.display = "none";
+  document.body.appendChild(a);
   a.click();
-  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 60_000);
 }

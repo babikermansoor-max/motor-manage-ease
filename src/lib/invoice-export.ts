@@ -181,10 +181,11 @@ export async function invoicePDF(s: Sale, st: StoreInfo): Promise<File> {
 
 /** Share via system share sheet when files are supported, otherwise download. Returns true if shared. */
 export async function shareOrDownload(file: File, title: string): Promise<boolean> {
-  const nav = navigator as Navigator & { canShare?: (d: ShareData) => boolean };
-  if (nav.share && nav.canShare?.({ files: [file] })) {
-    try { await nav.share({ files: [file], title }); return true; } catch (e) { if ((e as Error).name === "AbortError") return true; }
-  }
   downloadBlob(file.name, file);
+  const nav = navigator as Navigator & { canShare?: (d: ShareData) => boolean };
+  const touch = typeof matchMedia !== "undefined" && matchMedia("(pointer: coarse)").matches;
+  if (touch && nav.share && nav.canShare?.({ files: [file] })) {
+    try { await nav.share({ files: [file], title }); } catch { /* الملف تم تنزيله مسبقاً */ }
+  }
   return false;
 }

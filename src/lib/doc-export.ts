@@ -175,9 +175,10 @@ export async function pdfReport(fileName: string, meta: DocMeta, sections: Secti
 }
 
 export async function shareFile(file: File, title: string) {
-  const nav = navigator as Navigator & { canShare?: (d: ShareData) => boolean };
-  if (nav.share && nav.canShare?.({ files: [file] })) {
-    try { await nav.share({ files: [file], title }); return; } catch (e) { if ((e as Error).name === "AbortError") return; }
-  }
   downloadBlob(file.name, file);
+  const nav = navigator as Navigator & { canShare?: (d: ShareData) => boolean };
+  const touch = typeof matchMedia !== "undefined" && matchMedia("(pointer: coarse)").matches;
+  if (touch && nav.share && nav.canShare?.({ files: [file] })) {
+    try { await nav.share({ files: [file], title }); } catch { /* الملف تم تنزيله مسبقاً */ }
+  }
 }
