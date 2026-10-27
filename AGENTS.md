@@ -9,4 +9,4 @@
 > the editor, so keep the branch in a working state.
 <!-- LOVABLE:END -->
 - Self-hosting (Coolify/VPS): `npm run build` targets Nitro node-server (ignored inside Lovable, which keeps its own target) and `npm start` runs .output/server/index.mjs on PORT (default 3000); keep both scripts so external deploys work without manual commands.
-- Central data: the whole store syncs as one JSON row (table app_state) in PostgreSQL via DATABASE_URL (src/lib/db-sync.functions.ts); without DATABASE_URL the app stays browser-only, so the Lovable preview keeps working.
+- Central data: the store is one JSON row (app_state) in PostgreSQL via DATABASE_URL; every write is an Op (src/lib/ops.ts, pure applyOp shared by browser and server) sent to applyOps, which applies ops in order under a row lock and dedupes by op id in ops_log, so concurrent cashiers never overwrite each other. Generic setDB edits become patch ops; without DATABASE_URL the app stays browser-only.
