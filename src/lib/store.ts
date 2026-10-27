@@ -200,7 +200,7 @@ async function flush() {
     if (r.data) { confirmed = { ...seed(), ...JSON.parse(r.data) }; remoteVersion = r.version; }
     const ids = new Set(sent.map((o) => o.id));
     queue = queue.filter((o) => !ids.has(o.id));
-    const failed = r.results.filter((x) => !x.ok);
+    const failed = (r.results as { id: string; ok: boolean; error?: string }[]).filter((x) => !x.ok);
     if (failed.length) {
       const { toast } = await import("sonner");
       failed.forEach((f) => toast.error(`رفض السيرفر العملية: ${f.error ?? "خطأ"}`, { duration: 8000 }));
