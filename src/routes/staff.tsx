@@ -80,7 +80,7 @@ function StaffPage() {
             <div className="grid gap-3 sm:grid-cols-2">
               <Field label="الاسم"><Input value={edit.name} onChange={(e) => setEdit({ ...edit, name: e.target.value })} /></Field>
               <Field label="اسم المستخدم"><Input dir="ltr" value={edit.username} onChange={(e) => setEdit({ ...edit, username: e.target.value })} /></Field>
-              <Field label="الرمز السري"><Input dir="ltr" value={edit.pin} onChange={(e) => setEdit({ ...edit, pin: e.target.value })} /></Field>
+              <Field label="الرمز السري"><Input dir="ltr" type="password" autoComplete="new-password" value={edit.pin} onChange={(e) => setEdit({ ...edit, pin: e.target.value })} /></Field>
               <Field label="الدور">
                 <select className={selectCls} value={edit.role} onChange={(e) => setEdit({ ...edit, role: e.target.value, perms: ROLES[e.target.value] ?? edit.perms })}>
                   {Object.keys(ROLES).map((r) => <option key={r}>{r}</option>)}

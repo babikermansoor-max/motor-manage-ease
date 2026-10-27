@@ -13,6 +13,7 @@ function SyncBadge() {
 
 export const NAV = [
   { to: "/", label: "نقطة البيع", icon: ShoppingCart },
+  { to: "/staff", label: "الموظفين", icon: UserCog },
   { to: "/inventory", label: "المخزون", icon: Boxes },
   { to: "/sales", label: "المبيعات", icon: ReceiptText },
   { to: "/purchases", label: "المشتريات", icon: Truck },
@@ -21,7 +22,6 @@ export const NAV = [
   { to: "/reports", label: "التقارير", icon: BarChart3 },
   { to: "/branches", label: "الفروع والمخازن", icon: Warehouse },
   { to: "/transfers", label: "تحويل مخزني", icon: ArrowLeftRight },
-  { to: "/staff", label: "الموظفين", icon: UserCog },
   { to: "/settings", label: "الإعدادات", icon: Settings },
 ] as const;
 
