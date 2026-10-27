@@ -130,11 +130,49 @@ function load() {
   if (loaded || typeof window === "undefined") return;
   loaded = true;
   try { const raw = localStorage.getItem(KEY); if (raw) state = { ...seed(), ...JSON.parse(raw) }; } catch { /* keep seed */ }
+  setTimeout(startSync, 0);
 }
-export function setDB(fn: (d: DB) => DB) {
-  state = fn(state);
+function applyLocal(next: DB) {
+  state = next;
   try { localStorage.setItem(KEY, JSON.stringify(state)); } catch { /* quota */ }
   listeners.forEach((l) => l());
+}
+
+// ---- Server sync (PostgreSQL via DATABASE_URL when self-hosted) ----
+let syncOn = false, remoteVersion = 0, pushTimer: ReturnType<typeof setTimeout> | null = null, pushing = false;
+async function startSync() {
+  if (typeof window === "undefined" || import.meta.env.MODE === "test") return;
+  try {
+    const { pullState } = await import("./db-sync.functions");
+    const r = await pullState();
+    if (!r.enabled) return;
+    syncOn = true;
+    if (r.data) { remoteVersion = r.version; applyLocal({ ...seed(), ...JSON.parse(r.data) }); }
+    else schedulePush(0); // first device uploads its data
+    setInterval(poll, 10000);
+  } catch { /* offline: keep local */ }
+}
+async function poll() {
+  if (pushing || pushTimer) return;
+  try {
+    const { pullState } = await import("./db-sync.functions");
+    const r = await pullState();
+    if (r.data && r.version > remoteVersion && !pushTimer) { remoteVersion = r.version; applyLocal({ ...seed(), ...JSON.parse(r.data) }); }
+  } catch { /* ignore */ }
+}
+function schedulePush(delay = 600) {
+  if (!syncOn) return;
+  if (pushTimer) clearTimeout(pushTimer);
+  pushTimer = setTimeout(async () => {
+    pushTimer = null; pushing = true;
+    try { const { pushState } = await import("./db-sync.functions"); const r = await pushState({ data: { data: JSON.stringify(state) } }); remoteVersion = r.version; }
+    catch { schedulePush(5000); }
+    finally { pushing = false; }
+  }, delay);
+}
+export function setDB(fn: (d: DB) => DB) {
+  applyLocal(fn(state));
+  schedulePush();
 }
 export function getDB() { load(); return state; }
 export function resetDB() { setDB(() => seed()); }
