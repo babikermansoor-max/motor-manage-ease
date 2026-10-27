@@ -44,13 +44,10 @@ function LoginPage() {
           <h1 className="text-lg font-extrabold">{settings.storeName}</h1>
           <p className="text-sm text-muted-foreground">{settings.subtitle}</p>
         </div>
-        <Field label="اسم المستخدم"><Input dir="ltr" autoFocus value={u} onChange={(e) => setU(e.target.value)} placeholder="admin" /></Field>
+        <Field label="اسم المستخدم"><Input dir="ltr" autoFocus autoComplete="username" value={u} onChange={(e) => setU(e.target.value)} /></Field>
         <Field label="الرمز السري"><Input dir="ltr" type="password" inputMode="numeric" value={p} onChange={(e) => setP(e.target.value)} placeholder="••••" /></Field>
         <Button type="submit" className="w-full"><LogIn /> دخول</Button>
-        <div className="rounded-xl bg-muted/40 p-3 text-xs text-muted-foreground">
-          <div className="mb-1 flex items-center gap-1 font-bold text-foreground"><KeyRound className="h-3.5 w-3.5" /> حسابات تجريبية</div>
-          المدير: admin / 1234 · الكاشير: cashier / 1111 · المخزن: store / 2222
-        </div>
+        <p className="flex items-center justify-center gap-1 text-xs text-muted-foreground"><KeyRound className="h-3.5 w-3.5" /> نسيت الرمز؟ تواصل مع مدير النظام</p>
       </form>
     </div>
   );
