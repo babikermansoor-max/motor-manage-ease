@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { getDB, resetDB, setDB, useDB, type DB, type Settings } from "@/lib/store";
+import { getDB, replaceDB, resetDB, setDB, useDB, type DB, type Settings } from "@/lib/store";
 import { downloadBlob } from "@/lib/format";
 import { Field, Modal, PageHeader } from "@/components/erp/ui";
 
@@ -31,7 +31,7 @@ function SettingsPage() {
     try {
       const data = JSON.parse(await file.text()) as DB;
       if (!Array.isArray(data.products) || !data.settings) throw new Error();
-      setDB(() => data); setF(data.settings); toast.success("تمت استعادة قاعدة البيانات");
+      replaceDB(data); setF(data.settings); toast.success("تمت استعادة قاعدة البيانات");
     } catch { toast.error("ملف النسخة الاحتياطية غير صالح"); }
   };
   return (
