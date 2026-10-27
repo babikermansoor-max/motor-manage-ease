@@ -36,7 +36,7 @@ export const pushState = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     const sql = await getSql();
     if (!sql) return { enabled: false, version: 0 };
-    const rows = await sql`insert into app_state (id, data, version) values ('main', (${data.data}::text)::jsonb, 1)
+    const rows = await sql`insert into app_state (id, data, version) values ('main', ${sql.json(JSON.parse(data.data))}, 1)
       on conflict (id) do update set data = excluded.data, version = app_state.version + 1, updated_at = now()
       returning version`;
     return { enabled: true, version: Number(rows[0].version) };
