@@ -1,7 +1,15 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { Link, useLocation, useNavigate } from "@tanstack/react-router";
 import { ArrowLeftRight, BarChart3, Boxes, LogOut, ReceiptText, Settings, ShieldCheck, ShoppingCart, Truck, Users, UserCog, Wallet, Warehouse, Wrench } from "lucide-react";
-import { can, logout, permForPath, useCurrentUser, useDB } from "@/lib/store";
+import { can, logout, permForPath, useCurrentUser, useDB, useSyncStatus } from "@/lib/store";
+
+function SyncBadge() {
+  const s = useSyncStatus();
+  if (s.mode === "off") return null;
+  const ok = s.online && s.pending === 0;
+  const text = !s.online ? `غير متصل${s.pending ? ` · ${s.pending} بانتظار الرفع` : ""}` : s.pending ? `جارٍ الرفع (${s.pending})` : "متصل بالسيرفر";
+  return <span className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-semibold ${ok ? "bg-primary/15 text-primary" : s.online ? "bg-accent/20 text-accent" : "bg-destructive/15 text-destructive"}`}><span className="h-1.5 w-1.5 rounded-full bg-current" />{text}</span>;
+}
 
 export const NAV = [
   { to: "/", label: "نقطة البيع", icon: ShoppingCart },
@@ -67,10 +75,11 @@ function Shell({ children }: { children: ReactNode }) {
             </Link>
           ))}
         </nav>
+        <div className="mb-2"><SyncBadge /></div>
         <div className="flex items-center gap-2 rounded-xl bg-muted/50 p-3 text-xs text-muted-foreground"><div className="min-w-0 flex-1"><b className="block truncate text-foreground">{user?.name}</b>{user?.role}</div><button onClick={out} title="تسجيل الخروج" className="rounded-lg p-2 hover:bg-destructive/15 hover:text-destructive"><LogOut className="h-4 w-4" /></button></div>
       </aside>
       <main className="min-w-0 flex-1 px-3 pb-24 pt-4 sm:px-6 lg:pb-8">
-        <div className="mb-3 flex items-center justify-between rounded-xl bg-muted/40 px-3 py-2 text-xs lg:hidden"><span><b>{user?.name}</b> · {user?.role}</span><button onClick={out} className="flex items-center gap-1 text-destructive"><LogOut className="h-3.5 w-3.5" /> خروج</button></div>{children}</main>
+        <div className="mb-3 flex items-center justify-between rounded-xl bg-muted/40 px-3 py-2 text-xs lg:hidden"><span className="flex items-center gap-2"><span><b>{user?.name}</b> · {user?.role}</span><SyncBadge /></span><button onClick={out} className="flex items-center gap-1 text-destructive"><LogOut className="h-3.5 w-3.5" /> خروج</button></div>{children}</main>
       <nav className="fixed inset-x-0 bottom-0 z-40 flex overflow-x-auto border-t border-border bg-sidebar/95 backdrop-blur lg:hidden">
         {nav.map((n) => (
           <Link key={n.to} to={n.to} activeOptions={{ exact: true }}

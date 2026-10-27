@@ -29,3 +29,29 @@ describe("POS rules", () => {
     expect(treasury(getDB()).balance).toBe(before);
   });
 });
+
+import { applyOp, type Op } from "@/lib/ops";
+describe("server-side operation rules", () => {
+  beforeEach(() => resetDB());
+  const sale = (id: string, productId: string): Op => ({ id, at: new Date().toISOString(), kind: "checkout", saleId: "s-" + id, cart: [{ productId, qty: 1 }], customerId: "general", method: "cash", discountValue: 0, discountType: "amount", cashier: "x" });
+  it("two cashiers selling the last unit: second sale is rejected", () => {
+    const db0 = getDB();
+    const p = db0.products.find((x) => x.stock > 0)!;
+    const db = { ...db0, products: db0.products.map((x) => (x.id === p.id ? { ...x, stock: 1 } : x)) };
+    const after1 = applyOp(db, sale("a", p.id));
+    expect(after1.products.find((x) => x.id === p.id)!.stock).toBe(0);
+    expect(() => applyOp(after1, sale("b", p.id))).toThrow();
+  });
+  it("concurrent sales both keep their stock deduction", () => {
+    const db = getDB(); const p = db.products.find((x) => x.stock >= 5)!;
+    const out = applyOp(applyOp(db, sale("a", p.id)), sale("b", p.id));
+    expect(out.products.find((x) => x.id === p.id)!.stock).toBe(p.stock - 2);
+    expect(out.sales[0].no).toBe(out.sales[1].no + 1);
+  });
+  it("replaying the same sale does not deduct twice", () => {
+    const db = getDB(); const p = db.products.find((x) => x.stock >= 5)!;
+    const op = sale("a", p.id);
+    const out = applyOp(applyOp(db, op), op);
+    expect(out.products.find((x) => x.id === p.id)!.stock).toBe(p.stock - 1);
+  });
+});
