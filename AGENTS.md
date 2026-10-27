@@ -8,3 +8,4 @@
 > Commits you push to the connected branch sync back to Lovable and show up in
 > the editor, so keep the branch in a working state.
 <!-- LOVABLE:END -->
+- Self-hosting (Coolify/VPS): `npm run build` targets Nitro node-server (ignored inside Lovable, which keeps its own target) and `npm start` runs .output/server/index.mjs on PORT (default 3000); keep both scripts so external deploys work without manual commands.
