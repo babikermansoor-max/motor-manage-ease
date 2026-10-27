@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from "react";
+import { applyOp, computeTotals, diffPatch, GENERAL_CUSTOMER, MAIN_WH, uid, whQty, type Op, type OpBody } from "./ops";
 
 export type Category = "المحرك" | "الفرامل" | "المساعدين والتعليق" | "الكهرباء والحساسات" | "السيور" | "الفلاتر";
 export const CATEGORIES: Category[] = ["المحرك", "الفرامل", "المساعدين والتعليق", "الكهرباء والحساسات", "السيور", "الفلاتر"];
@@ -33,12 +34,9 @@ export const ALL_PERMS = PERMS.map((p) => p.key) as Perm[];
 export interface Employee { id: string; name: string; username: string; pin: string; role: string; branchId: string; perms: Perm[]; active: boolean }
 export interface Warehouse { id: string; name: string; type: "فرع" | "مخزن"; location: string; manager: string }
 export interface Transfer { id: string; no: number; date: string; from: string; to: string; fromName: string; toName: string; items: { productId: string; name: string; qty: number }[]; by: string; note: string }
-export const MAIN_WH = "main";
 export interface DB { employees: Employee[]; warehouses: Warehouse[]; transfers: Transfer[]; whStock: Record<string, Record<string, number>>; products: Product[]; customers: Customer[]; suppliers: Supplier[]; sales: Sale[]; purchases: Purchase[]; txs: Tx[]; settings: Settings; openingBalance: number }
 
-export const GENERAL_CUSTOMER = "general";
 const KEY = "omar-parts-erp-v1";
-export const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
 
 function seed(): DB {
   const P = (partNo: string, oem: string, name: string, brand: string, models: string, category: Category, shelf: string, cost: number, price: number, stock: number, min: number): Product =>
@@ -124,136 +122,141 @@ function seed(): DB {
 }
 
 let state: DB = seed();
+let confirmed: DB = state; // last state acknowledged by the server
+let queue: Op[] = []; // operations not yet acknowledged
 let loaded = false;
 const listeners = new Set<() => void>();
+const QKEY = KEY + "-queue", BKEY = KEY + "-base";
+const isTest = () => import.meta.env.MODE === "test";
+// sync: "unknown" until the server answers, "on" with DATABASE_URL, "off" for browser-only
+let syncMode: "unknown" | "on" | "off" = "unknown";
+let remoteVersion = 0, flushing = false, online = true, started = false;
+let status = { mode: syncMode as string, online, pending: 0 };
+const stListeners = new Set<() => void>();
+function emitStatus() { status = { mode: syncMode, online, pending: queue.length }; stListeners.forEach((l) => l()); }
+
 function load() {
   if (loaded || typeof window === "undefined") return;
   loaded = true;
-  try { const raw = localStorage.getItem(KEY); if (raw) state = { ...seed(), ...JSON.parse(raw) }; } catch { /* keep seed */ }
-  setTimeout(startSync, 0);
+  try {
+    const raw = localStorage.getItem(KEY); if (raw) state = { ...seed(), ...JSON.parse(raw) };
+    const b = localStorage.getItem(BKEY); confirmed = b ? { ...seed(), ...JSON.parse(b) } : state;
+    const q = localStorage.getItem(QKEY); queue = q ? JSON.parse(q) : [];
+  } catch { /* keep seed */ }
+  if (isTest()) { syncMode = "off"; queue = []; }
+  else setTimeout(startSync, 0);
 }
-function applyLocal(next: DB) {
-  state = next;
-  try { localStorage.setItem(KEY, JSON.stringify(state)); } catch { /* quota */ }
+function persist() {
+  try {
+    localStorage.setItem(KEY, JSON.stringify(state));
+    localStorage.setItem(BKEY, JSON.stringify(confirmed));
+    localStorage.setItem(QKEY, JSON.stringify(queue));
+  } catch { /* quota */ }
   listeners.forEach((l) => l());
+  emitStatus();
+}
+function rebase() {
+  state = queue.reduce((d, op) => { try { return applyOp(d, op); } catch { return d; } }, confirmed);
 }
 
 // ---- Server sync (PostgreSQL via DATABASE_URL when self-hosted) ----
-let syncOn = false, remoteVersion = 0, pushTimer: ReturnType<typeof setTimeout> | null = null, pushing = false;
 async function startSync() {
-  if (typeof window === "undefined" || import.meta.env.MODE === "test") return;
+  try {
+    const { pullState, pushState } = await import("./db-sync.functions");
+    const r = await pullState();
+    online = true;
+    if (!r.enabled) { syncMode = "off"; confirmed = state; queue = []; persist(); return; }
+    syncMode = "on";
+    if (r.data) { remoteVersion = r.version; confirmed = { ...seed(), ...JSON.parse(r.data) }; rebase(); persist(); }
+    else { // first device uploads its data
+      const p = await pushState({ data: { data: JSON.stringify(confirmed) } }); remoteVersion = p.version;
+      const again = await pullState(); if (again.data) { confirmed = { ...seed(), ...JSON.parse(again.data) }; remoteVersion = again.version; rebase(); persist(); }
+    }
+    void flush();
+  } catch { online = false; emitStatus(); }
+  finally {
+    if (!started && syncMode !== "off") { started = true; setInterval(tick, 5000); }
+  }
+}
+async function tick() {
+  if (syncMode === "unknown") return startSync();
+  if (syncMode !== "on" || flushing) return;
+  if (queue.length) return flush();
   try {
     const { pullState } = await import("./db-sync.functions");
-    const r = await pullState();
-    if (!r.enabled) return;
-    syncOn = true;
-    if (r.data) { remoteVersion = r.version; applyLocal({ ...seed(), ...JSON.parse(r.data) }); }
-    else schedulePush(0); // first device uploads its data
-    setInterval(poll, 10000);
-  } catch { /* offline: keep local */ }
+    const r = await pullState(); online = true;
+    if (r.data && r.version > remoteVersion && !queue.length && !flushing) { remoteVersion = r.version; confirmed = { ...seed(), ...JSON.parse(r.data) }; rebase(); persist(); }
+    else emitStatus();
+  } catch { online = false; emitStatus(); }
 }
-async function poll() {
-  if (pushing || pushTimer) return;
+async function flush() {
+  if (syncMode !== "on" || flushing || !queue.length) return;
+  flushing = true;
+  const sent = queue.slice();
   try {
-    const { pullState } = await import("./db-sync.functions");
-    const r = await pullState();
-    if (r.data && r.version > remoteVersion && !pushTimer) { remoteVersion = r.version; applyLocal({ ...seed(), ...JSON.parse(r.data) }); }
-  } catch { /* ignore */ }
+    const { applyOps } = await import("./db-sync.functions");
+    const r = await applyOps({ data: { ops: sent } });
+    online = true;
+    if (r.data) { confirmed = { ...seed(), ...JSON.parse(r.data) }; remoteVersion = r.version; }
+    const ids = new Set(sent.map((o) => o.id));
+    queue = queue.filter((o) => !ids.has(o.id));
+    const failed = r.results.filter((x) => !x.ok);
+    if (failed.length) {
+      const { toast } = await import("sonner");
+      failed.forEach((f) => toast.error(`رفض السيرفر العملية: ${f.error ?? "خطأ"}`, { duration: 8000 }));
+    }
+    rebase(); persist();
+  } catch { online = false; emitStatus(); }
+  finally { flushing = false; }
+  if (queue.length && online) void flush();
 }
-function schedulePush(delay = 600) {
-  if (!syncOn) return;
-  if (pushTimer) clearTimeout(pushTimer);
-  pushTimer = setTimeout(async () => {
-    pushTimer = null; pushing = true;
-    try { const { pushState } = await import("./db-sync.functions"); const r = await pushState({ data: { data: JSON.stringify(state) } }); remoteVersion = r.version; }
-    catch { schedulePush(5000); }
-    finally { pushing = false; }
-  }, delay);
+
+/** Apply an operation locally right away and queue it for the server. Throws if it is invalid locally. */
+export function dispatch(body: OpBody): DB {
+  load();
+  const op = { ...body, id: uid(), at: new Date().toISOString() } as Op;
+  state = applyOp(state, op);
+  if (syncMode === "off") confirmed = state; else queue.push(op);
+  persist();
+  void flush();
+  return state;
 }
 export function setDB(fn: (d: DB) => DB) {
-  applyLocal(fn(state));
-  schedulePush();
+  load();
+  const patch = diffPatch(state, fn(state));
+  if (patch) dispatch({ kind: "patch", patch });
 }
+export function replaceDB(data: DB) { dispatch({ kind: "replace", data: { ...seed(), ...data } }); }
 export function getDB() { load(); return state; }
-export function resetDB() { setDB(() => seed()); }
+export function resetDB() { replaceDB(seed()); }
 export function useDB() {
   return useSyncExternalStore((l) => { listeners.add(l); return () => listeners.delete(l); }, getDB, getDB);
 }
+const offStatus = { mode: "off", online: true, pending: 0 };
+export function useSyncStatus() {
+  return useSyncExternalStore((l) => { stListeners.add(l); return () => stListeners.delete(l); }, () => status, () => offStatus);
+}
 
 // ---------- Domain actions ----------
-export function computeTotals(items: { price: number; qty: number }[], discountValue: number, discountType: "amount" | "percent") {
-  const subtotal = items.reduce((s, i) => s + i.price * i.qty, 0);
-  const raw = discountType === "percent" ? (subtotal * Math.min(Math.max(discountValue, 0), 100)) / 100 : Math.max(discountValue, 0);
-  const discount = Math.min(Math.round(raw), subtotal);
-  return { subtotal, discount, total: subtotal - discount };
-}
+export { computeTotals, whQty, uid, GENERAL_CUSTOMER, MAIN_WH };
 
 export function checkout(cart: { productId: string; qty: number }[], customerId: string, method: PayMethod, discountValue: number, discountType: "amount" | "percent"): Sale {
-  const d = getDB();
-  if (method === "credit" && customerId === GENERAL_CUSTOMER) throw new Error("البيع الآجل يتطلب اختيار عميل مسجل");
-  const items: SaleItem[] = cart.map((c) => {
-    const p = d.products.find((x) => x.id === c.productId);
-    if (!p) throw new Error("صنف غير موجود");
-    if (c.qty > p.stock) throw new Error(`الكمية غير متوفرة: ${p.name}`);
-    return { productId: p.id, name: p.name, partNo: p.partNo, price: p.price, cost: p.cost, qty: c.qty };
-  });
-  if (!items.length) throw new Error("السلة فارغة");
-  const t = computeTotals(items, discountValue, discountType);
-  const cust = d.customers.find((c) => c.id === customerId)!;
-  const no = Math.max(1000, ...d.sales.map((s) => s.no)) + 1;
-  const sale: Sale = { id: uid(), no, date: new Date().toISOString(), customerId, customerName: cust.name, items, ...t, method, cashier: currentUser()?.name ?? d.settings.cashier };
-  setDB((db) => ({
-    ...db,
-    products: db.products.map((p) => { const it = items.find((i) => i.productId === p.id); return it ? { ...p, stock: p.stock - it.qty } : p; }),
-    customers: db.customers.map((c) => c.id === customerId && c.id !== GENERAL_CUSTOMER ? { ...c, debt: c.debt + (method === "credit" ? t.total : 0), points: c.points + Math.floor(t.total / 1000) } : c),
-    sales: [sale, ...db.sales],
-    txs: method === "credit" ? db.txs : [{ id: uid(), date: sale.date, type: "مبيعات", dir: "in", amount: t.total, method, note: `فاتورة مبيعات #${no}` }, ...db.txs],
-  }));
-  return sale;
+  const saleId = uid();
+  const d = dispatch({ kind: "checkout", saleId, cart, customerId, method, discountValue, discountType, cashier: currentUser()?.name ?? getDB().settings.cashier });
+  return d.sales.find((s) => s.id === saleId)!;
 }
-
 export function returnSale(saleId: string) {
   const s = getDB().sales.find((x) => x.id === saleId);
   if (!s || s.returned) return;
-  setDB((db) => ({
-    ...db,
-    sales: db.sales.map((x) => (x.id === saleId ? { ...x, returned: true } : x)),
-    products: db.products.map((p) => { const it = s.items.find((i) => i.productId === p.id); return it ? { ...p, stock: p.stock + it.qty } : p; }),
-    customers: db.customers.map((c) => c.id === s.customerId && s.method === "credit" ? { ...c, debt: Math.max(0, c.debt - s.total) } : c),
-    txs: s.method === "credit" ? db.txs : [{ id: uid(), date: new Date().toISOString(), type: "مرتجعات", dir: "out", amount: s.total, method: s.method, note: `مرتجع فاتورة #${s.no}` }, ...db.txs],
-  }));
+  dispatch({ kind: "returnSale", saleId });
 }
-
 export function savePurchase(supplierId: string, items: { productId: string; qty: number; cost: number }[], paidNow: boolean) {
-  const d = getDB();
-  const sup = d.suppliers.find((s) => s.id === supplierId);
-  if (!sup) throw new Error("اختر المورد");
-  const valid = items.filter((i) => i.qty > 0);
-  if (!valid.length) throw new Error("أضف أصنافاً للفاتورة");
-  const total = valid.reduce((s, i) => s + i.qty * i.cost, 0);
-  const no = Math.max(500, ...d.purchases.map((p) => p.no)) + 1;
-  const pur: Purchase = { id: uid(), no, date: new Date().toISOString(), supplierId, supplierName: sup.name, items: valid.map((i) => ({ ...i, name: d.products.find((p) => p.id === i.productId)?.name ?? "" })), total };
-  setDB((db) => ({
-    ...db,
-    purchases: [pur, ...db.purchases],
-    products: db.products.map((p) => { const it = valid.find((i) => i.productId === p.id); return it ? { ...p, stock: p.stock + it.qty, cost: it.cost } : p; }),
-    suppliers: paidNow ? db.suppliers : db.suppliers.map((s) => (s.id === supplierId ? { ...s, balance: s.balance + total } : s)),
-    txs: paidNow ? [{ id: uid(), date: pur.date, type: "مشتريات", dir: "out", amount: total, method: "cash", note: `فاتورة مشتريات #${no} - ${sup.name}` }, ...db.txs] : db.txs,
-  }));
-  return pur;
+  const purchaseId = uid();
+  return dispatch({ kind: "purchase", purchaseId, supplierId, items, paidNow }).purchases.find((p) => p.id === purchaseId)!;
 }
-
-export function paySupplier(id: string, amount: number, method: "cash" | "bankak") {
-  const s = getDB().suppliers.find((x) => x.id === id)!;
-  setDB((db) => ({ ...db, suppliers: db.suppliers.map((x) => (x.id === id ? { ...x, balance: Math.max(0, x.balance - amount) } : x)), txs: [{ id: uid(), date: new Date().toISOString(), type: "سداد ديون", dir: "out", amount, method, note: `سداد للمورد: ${s.name}` }, ...db.txs] }));
-}
-export function collectDebt(id: string, amount: number, method: "cash" | "bankak") {
-  const c = getDB().customers.find((x) => x.id === id)!;
-  setDB((db) => ({ ...db, customers: db.customers.map((x) => (x.id === id ? { ...x, debt: Math.max(0, x.debt - amount) } : x)), txs: [{ id: uid(), date: new Date().toISOString(), type: "تحصيل ديون", dir: "in", amount, method, note: `تحصيل من: ${c.name}` }, ...db.txs] }));
-}
-export function addExpense(category: string, amount: number, method: "cash" | "bankak", note: string) {
-  setDB((db) => ({ ...db, txs: [{ id: uid(), date: new Date().toISOString(), type: "مصروفات", dir: "out", amount, method, note: `${category}: ${note || category}` }, ...db.txs] }));
-}
+export function paySupplier(supplierId: string, amount: number, method: "cash" | "bankak") { dispatch({ kind: "paySupplier", supplierId, amount, method }); }
+export function collectDebt(customerId: string, amount: number, method: "cash" | "bankak") { dispatch({ kind: "collectDebt", customerId, amount, method }); }
+export function addExpense(category: string, amount: number, method: "cash" | "bankak", note: string) { dispatch({ kind: "expense", category, amount, method, note }); }
 
 export function treasury(db: DB) {
   const sum = (f: (t: Tx) => boolean) => db.txs.filter(f).reduce((s, t) => s + t.amount, 0);
@@ -270,30 +273,9 @@ export function treasury(db: DB) {
 }
 
 // ---------- Warehouses & transfers ----------
-export function whQty(db: DB, productId: string, wh: string) {
-  if (wh === MAIN_WH) return db.products.find((p) => p.id === productId)?.stock ?? 0;
-  return db.whStock[wh]?.[productId] ?? 0;
-}
 export function transferStock(from: string, to: string, items: { productId: string; qty: number }[], note = ""): Transfer {
-  const d = getDB();
-  if (!from || !to || from === to) throw new Error("اختر مخزنين مختلفين");
-  const valid = items.filter((i) => i.qty > 0);
-  if (!valid.length) throw new Error("أضف أصنافاً للتحويل");
-  for (const i of valid) if (i.qty > whQty(d, i.productId, from)) throw new Error(`الكمية غير متوفرة بالمخزن المصدر: ${d.products.find((p) => p.id === i.productId)?.name}`);
-  const name = (id: string) => d.warehouses.find((w) => w.id === id)?.name ?? id;
-  const no = Math.max(100, ...d.transfers.map((t) => t.no)) + 1;
-  const tr: Transfer = { id: uid(), no, date: new Date().toISOString(), from, to, fromName: name(from), toName: name(to), items: valid.map((i) => ({ ...i, name: d.products.find((p) => p.id === i.productId)?.name ?? "" })), by: currentUser()?.name ?? "-", note };
-  setDB((db) => {
-    const ws = { ...db.whStock };
-    let products = db.products;
-    const apply = (wh: string, pid: string, delta: number) => {
-      if (wh === MAIN_WH) products = products.map((p) => (p.id === pid ? { ...p, stock: p.stock + delta } : p));
-      else ws[wh] = { ...(ws[wh] ?? {}), [pid]: (ws[wh]?.[pid] ?? 0) + delta };
-    };
-    for (const i of valid) { apply(from, i.productId, -i.qty); apply(to, i.productId, i.qty); }
-    return { ...db, products, whStock: ws, transfers: [tr, ...db.transfers] };
-  });
-  return tr;
+  const transferId = uid();
+  return dispatch({ kind: "transfer", transferId, from, to, items, note, by: currentUser()?.name ?? "-" }).transfers.find((t) => t.id === transferId)!;
 }
 
 // ---------- Session (login) ----------
